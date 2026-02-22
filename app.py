@@ -1,26 +1,20 @@
-import pickle
 import streamlit as st
+import pickle
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
-# ---------------- PAGE CONFIG ----------------
-st.set_page_config(
-    page_title="Netflix Style Movie Recommender",
-    layout="wide"
-)
+# ---------------- PAGE SETTINGS ----------------
+st.set_page_config(page_title=" Movie Recommender Systen ", layout="wide")
 
-# ---------------- CUSTOM NETFLIX CSS ----------------
+# ---------------- NETFLIX STYLE CSS ----------------
 st.markdown("""
 <style>
-body {
-    background-color: #0e1117;
-}
 .stApp {
     background-color: #0e1117;
-}
-h1 {
-    text-align: center;
+    color: white;
 }
 .movie-card img {
-    border-radius: 10px;
+    border-radius: 12px;
     transition: transform 0.3s ease;
 }
 .movie-card img:hover {
@@ -29,19 +23,32 @@ h1 {
 .movie-title {
     text-align: center;
     font-weight: bold;
-    font-size: 16px;
+    font-size: 15px;
     padding-top: 5px;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------- LOAD MODEL ----------------
-movies = pickle.load(open('model/movies_list.pkl','rb'))
-similarity = pickle.load(open('model/similarity.pkl','rb'))
+# ---------------- LOAD DATA (DEPLOY SAFE) ----------------
+@st.cache_resource
+def load_data():
+    # load movies list
+    movies = pickle.load(open('model/movies_list.pkl','rb'))
+
+    # rebuild similarity matrix instead of loading big file
+    cv = CountVectorizer(max_features=5000, stop_words='english')
+    vectors = cv.fit_transform(movies['tags']).toarray()
+
+    similarity = cosine_similarity(vectors)
+
+    return movies, similarity
+
+movies, similarity = load_data()
 
 # ---------------- RECOMMEND FUNCTION ----------------
 def recommend(movie):
     index = movies[movies['title'] == movie].index[0]
+
     distances = sorted(
         list(enumerate(similarity[index])),
         reverse=True,
@@ -57,15 +64,9 @@ def recommend(movie):
 
     return names, posters
 
-# ---------------- HEADER ----------------
-st.markdown(
-    "<h1>🎬 Netflix Style Movie Recommendation System</h1>",
-    unsafe_allow_html=True
-)
+# ---------------- UI HEADER ----------------
+st.markdown("<h1 style='text-align:center;'>🎬 Netflix Style Movie Recommendation System</h1>", unsafe_allow_html=True)
 
-st.write("")
-
-# ---------------- SELECT BOX ----------------
 movie_list = movies['title'].values
 
 selected_movie = st.selectbox(
@@ -78,9 +79,6 @@ if st.button("🔥 Show Recommendations"):
 
     with st.spinner("Finding similar movies..."):
         names, posters = recommend(selected_movie)
-
-    st.write("")
-    st.markdown("## ⭐ Recommended For You")
 
     cols = st.columns(5)
 
